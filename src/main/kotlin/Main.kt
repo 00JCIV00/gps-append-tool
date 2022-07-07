@@ -1,7 +1,7 @@
 /*
 Author:     Jake Crawford
 Created:    06 July 2022
-Updated:    06 July 2022
+Updated:    07 July 2022
 Version:	0.0.1a
 
 Details:	Append GPS data to survey files
@@ -43,14 +43,15 @@ class GAT: CliktCommand(help = "GPS Append Tool.") {
 
 		val inputSplit = input!!.split('.')
 
-		if(filetype_opt.isNullOrEmpty() && inputSplit.size > 1) {
-			filetype = ".${inputSplit.last()}"
+		filetype = if(filetype_opt.isNullOrEmpty() && inputSplit.size > 1) {
+			".${inputSplit.last()}"
 		}
-		else filetype = ".pcap"
+		else (if(!filetype_opt.isNullOrEmpty()) filetype_opt else ".pcap").toString()
 
-		if(output_opt.isNullOrEmpty()) {
-			output = "${inputSplit.subList(0, inputSplit.lastIndex).joinToString(".")}_gps$filetype"
+		output = if(output_opt.isNullOrEmpty()) {
+			 "${inputSplit.subList(0, inputSplit.lastIndex).joinToString(".")}_gps$filetype"
 		}
+		else output_opt.toString()
 
 		// Logic
 		for(item in listOf(input, gpsdata, filetype, output)){

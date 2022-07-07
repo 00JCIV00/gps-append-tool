@@ -5,8 +5,8 @@ plugins {
     application
 }
 
-group = "org.jc__iv"
-version = "0.0.1a"
+group = "00JCIV00"
+version = "0.0.2a"
 
 repositories {
     mavenCentral()
@@ -15,6 +15,22 @@ repositories {
 dependencies {
     testImplementation(kotlin("test"))
     implementation("com.github.ajalt.clikt:clikt:3.5.0")
+    //implementation ("com.ardikars.pcap:pcap:${PCAP-LATEST-VERSION}")
+}
+
+application {
+    mainClass.set("MainKt")
+}
+
+distributions{
+    main {
+        contents {
+            from("/") {
+                include("README.md")
+                into("docs")
+            }
+        }
+    }
 }
 
 tasks.test {
@@ -23,10 +39,6 @@ tasks.test {
 
 tasks.withType<KotlinCompile> {
     kotlinOptions.jvmTarget = "1.8"
-}
-
-application {
-    mainClass.set("MainKt")
 }
 
 tasks.jar {
