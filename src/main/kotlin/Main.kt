@@ -1,8 +1,8 @@
 /*
 Author:     Jake Crawford
-Created:    06 July 2022
-Updated:    07 July 2022
-Version:	0.0.1a
+Created:    06 JUL 2022
+Updated:    08 JUL 2022
+Version:	0.0.2a
 
 Details:	Append GPS data to survey files
  */

@@ -8,13 +8,47 @@ plugins {
 group = "00JCIV00"
 version = "0.0.2a"
 
+tasks.register("updateVersionNumbers") {
+    println("Updating Version Numbers to $version...")
+    var updatedVer = false
+    listOf("README.md", "src/main/kotlin/Main.kt").forEach { fileName ->
+        val nextFile = File(fileName)
+        val newLines: MutableList<String> = mutableListOf()
+        var updateFile = false
+        nextFile.useLines { lines ->
+            lines.forEachIndexed { _, line ->
+                // RegEx for version type
+                val verRegex = Regex("\\d\\.\\d\\.\\d[a-z]")
+                val newLine = if (line.contains("Version:") && line.contains(regex = verRegex) && verRegex.find(line)?.range?.let {line.substring(it)} != version) {
+                    println("..Updated '${fileName}'")
+                    updatedVer = true
+                    updateFile = true
+                    line.replace(verRegex, version.toString())
+                } else line
+                newLines.add(newLine)
+            }
+        }
+        if(updateFile) {
+            nextFile.printWriter().use { out ->
+                newLines.forEach { line ->
+                    out.println(line)
+                }
+            }
+        }
+    }
+    if(updatedVer)
+        println("Updated Version Numbers to $version.")
+    else
+        println("No Version Numbers to Update.")
+}
+
 repositories {
     mavenCentral()
 }
 
 dependencies {
     testImplementation(kotlin("test"))
-    implementation("com.github.ajalt.clikt:clikt:3.5.0")
+    implementation("com.github.ajalt.clikt:clikt:3.+")
     //implementation ("com.ardikars.pcap:pcap:${PCAP-LATEST-VERSION}")
 }
 
@@ -33,16 +67,22 @@ distributions{
     }
 }
 
+tasks.assembleDist {
+    dependsOn("updateVersionNumbers")
+}
+
 tasks.test {
     useJUnitPlatform()
 }
 
 tasks.withType<KotlinCompile> {
+    dependsOn("updateVersionNumbers")
     kotlinOptions.jvmTarget = "1.8"
 }
 
 tasks.jar {
-    duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.INCLUDE
+    dependsOn("updateVersionNumbers")
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
 
     manifest {
         attributes["Main-Class"] = "MainKt"
@@ -51,4 +91,8 @@ tasks.jar {
     configurations["compileClasspath"].forEach { file: File ->
         from(zipTree(file.absoluteFile))
     }
+}
+
+tasks.build {
+    dependsOn("updateVersionNumbers")
 }
