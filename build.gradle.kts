@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "00JCIV00"
-version = "0.0.2a"
+version = "0.0.3a"
 
 tasks.register("updateVersionNumbers") {
     println("Updating Version Numbers to $version...")
@@ -18,7 +18,7 @@ tasks.register("updateVersionNumbers") {
         nextFile.useLines { lines ->
             lines.forEachIndexed { _, line ->
                 // RegEx for version type
-                val verRegex = Regex("\\d\\.\\d\\.\\d[a-z]")
+                val verRegex = Regex("\\d\\.\\d\\.\\d[a-z]?")
                 val newLine = if (line.contains("Version:") && line.contains(regex = verRegex) && verRegex.find(line)?.range?.let {line.substring(it)} != version) {
                     println("..Updated '${fileName}'")
                     updatedVer = true
@@ -47,9 +47,16 @@ repositories {
 }
 
 dependencies {
+    
     testImplementation(kotlin("test"))
     implementation("com.github.ajalt.clikt:clikt:3.+")
-    //implementation ("com.ardikars.pcap:pcap:${PCAP-LATEST-VERSION}")
+    implementation("com.ardikars.pcap:pcap:1.4.+")
+    implementation("com.ardikars.pcap:pcap-jdk7:1.4.+")
+    implementation("com.ardikars.pcap:pcap-spi:1.4.+")
+    implementation("com.ardikars.pcap:pcap-tests:1.4.+")
+    implementation("com.ardikars.pcap:pcap-common:1.4.+")
+    implementation("com.ardikars.pcap:pcap-codec:1.4.+")
+
 }
 
 application {
@@ -67,6 +74,10 @@ distributions{
     }
 }
 
+tasks.startScripts {
+    applicationName = "gat"
+}
+
 tasks.assembleDist {
     dependsOn("updateVersionNumbers")
 }
@@ -77,7 +88,7 @@ tasks.test {
 
 tasks.withType<KotlinCompile> {
     dependsOn("updateVersionNumbers")
-    kotlinOptions.jvmTarget = "1.8"
+    kotlinOptions.jvmTarget = "11"
 }
 
 tasks.jar {
