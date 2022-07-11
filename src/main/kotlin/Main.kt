@@ -1,19 +1,24 @@
 /*
 Author:     Jake Crawford
 Created:    06 JUL 2022
-Updated:    09 JUL 2022
+Updated:    11 JUL 2022
 Version:	0.0.3a
 
 Details:	Append GPS data to survey files
  */
 
 import com.github.ajalt.clikt.core.*
+import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.validate
-import pcap.codec.ethernet.Ethernet
-import pcap.codec.ip.Ip4
-import pcap.codec.ip.Ip6
+import com.github.ajalt.clikt.parameters.types.int
+import com.silabs.na.pcap.Block
+import com.silabs.na.pcap.IPcapInput
+import com.silabs.na.pcap.Pcap
+
+/*import pcap.codec.ethernet.Ethernet
+import pcap.codec.ip.*
 import pcap.codec.tcp.Tcp
 import pcap.codec.udp.Udp
 import pcap.spi.PacketBuffer
@@ -22,7 +27,8 @@ import pcap.spi.Service
 import pcap.spi.exception.ErrorException
 import pcap.spi.exception.error.BreakException
 import pcap.spi.option.DefaultOfflineOptions
-
+ */
+import java.io.File
 
 
 class GAT: CliktCommand("GPS Append Tool.") {
@@ -52,6 +58,8 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 
 	val outputOpt: String? by option("-o", "--output", help = "Specify the name of the output file for the new survey file with appended GPS data. (Defaults to the input filename with '_gps' appended before the filetype.)")
 
+	val numPackets by option("-n", help = "[Debugging] Number of Packets to append to from input pcap file. (Defaults to 0 for all packets.)").int().default(0)
+
 	lateinit var filetype: String
 
 	lateinit var output: String
@@ -59,12 +67,12 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 
 	override fun run() {
 		// Validation
-		if(input.isNullOrEmpty()) {
+		if (input.isNullOrEmpty()) {
 			echo("--input file must be specified.")
 			return
 		}
 
-		if(gpsData.isNullOrEmpty()) {
+		if (gpsData.isNullOrEmpty()) {
 			echo("--gpsdata file must be specified.")
 			return
 		}
@@ -81,7 +89,9 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 		}
 		else outputOpt.toString()
 
+
 		// Logic
+		echo()
 		if (config["verbose"] as Boolean) {
 			for (item in listOf(input, gpsData, filetype, output)) {
 				echo(item)
@@ -90,17 +100,43 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 		else
 			echo("Verbose mode off.")
 
+		echo("\n=============================\n")
+		echo("Attempting to read in '$input'...")
+		val pcapFileIn: File = File(input)
+
+		try {
+			val pcapIn: IPcapInput = Pcap.openForReading(pcapFileIn)
+			var count = 0
+			val countExp: () -> Boolean = if (numPackets > 0) { { count < numPackets } } else { { true } }
+			echo("While Expression: $countExp\n\t- Result: ${countExp()}")
+			while (countExp()) {
+				val block: Block? = pcapIn.nextBlock() ?: break
+				echo(count)
+				echo("${block?.type()?.toString()}")
+				echo("${block?.type()?.typeCode()}")
+				echo("")
+				count++
+			}
+		}
+
+		catch (e: Exception) {
+			echo(err = true, message = e.message)
+		}
+
+		echo("\n\nAttempted to read in '$input'.\n")
+
+		/*
 		val pcapService = Service.Creator.create("PcapService")
 		val pcapIn = pcapService.offline(input, DefaultOfflineOptions())
 		try {
 			var count = 0
 			pcapIn.loop(
-				1000,
+				if (numPackets >= 0) numPackets else 0,
 				{ args: String, header: PacketHeader, buffer: PacketBuffer ->
 					// echo("Args:\t$args")
 					if (count % 1 == 0) {
 						echo(count)
-						echo("Header:\t${header}")
+						echo("Header:\t$header")
 						echo("Packet:\t$buffer")
 						val ethernet: Ethernet = buffer.cast(Ethernet::class.java)
 						echo(ethernet)
@@ -141,6 +177,7 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 
 		}
 		pcapIn.close()
+		 */
 	}
 
 }

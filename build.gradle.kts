@@ -8,6 +8,45 @@ plugins {
 group = "00JCIV00"
 version = "0.0.3a"
 
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Default
+    testImplementation(kotlin("test"))
+
+    // Local
+    fileTree("/lib").filter { file -> file.name.endsWith(".jar") }
+                            .forEach { jar -> implementation(files(jar))}
+
+    // External
+    implementation("com.github.ajalt.clikt:clikt:3.+")
+    /* implementation("com.ardikars.pcap:pcap:1.4.+")
+    implementation("com.ardikars.pcap:pcap-jdk7:1.4.+")
+    implementation("com.ardikars.pcap:pcap-spi:1.4.+")
+    implementation("com.ardikars.pcap:pcap-tests:1.4.+")
+    implementation("com.ardikars.pcap:pcap-common:1.4.+")
+    implementation("com.ardikars.pcap:pcap-codec:1.4.+")
+     */
+
+}
+
+application {
+    mainClass.set("MainKt")
+}
+
+distributions{
+    main {
+        contents {
+            from("/") {
+                include("README.md")
+                into("docs")
+            }
+        }
+    }
+}
+
 tasks.register("updateVersionNumbers") {
     println("Updating Version Numbers to $version...")
     var updatedVer = false
@@ -40,38 +79,6 @@ tasks.register("updateVersionNumbers") {
         println("Updated Version Numbers to $version.")
     else
         println("No Version Numbers to Update.")
-}
-
-repositories {
-    mavenCentral()
-}
-
-dependencies {
-    
-    testImplementation(kotlin("test"))
-    implementation("com.github.ajalt.clikt:clikt:3.+")
-    implementation("com.ardikars.pcap:pcap:1.4.+")
-    implementation("com.ardikars.pcap:pcap-jdk7:1.4.+")
-    implementation("com.ardikars.pcap:pcap-spi:1.4.+")
-    implementation("com.ardikars.pcap:pcap-tests:1.4.+")
-    implementation("com.ardikars.pcap:pcap-common:1.4.+")
-    implementation("com.ardikars.pcap:pcap-codec:1.4.+")
-
-}
-
-application {
-    mainClass.set("MainKt")
-}
-
-distributions{
-    main {
-        contents {
-            from("/") {
-                include("README.md")
-                into("docs")
-            }
-        }
-    }
 }
 
 tasks.startScripts {
