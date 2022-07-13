@@ -6,7 +6,7 @@
 - **GitHubLink:**     [gps-append-tool](https://github.com/00JCIV00/gps-append-tool)
 - **Description:**    Append GPS data to survey files.
 
-## Instruction
+## Instructions
 WIP
 
 ## Resources

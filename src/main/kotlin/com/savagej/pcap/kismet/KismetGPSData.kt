@@ -9,24 +9,78 @@ Details:	Encode and Decode custom pcap-ng bytes to and from Kismet gps data
 
 package com.savagej.pcap.kismet
 
+import kotlin.math.sqrt
+
 class KismetGPSData {
 	companion object {
 		/**
-		 * Returns the decoded latitude of a Kismet-style 32 bit [rawUInt] with 3_6 (###.######) precision.
+		 * Enumeration of all Kismet GPS Field Indeces.
 		 */
-		fun decodeLat(rawUInt: UInt): Float {
+		enum class KismetGPSFields(val index: UInt) {
+			LONGITUDE(0x2u),
+			LATITUDE(0x4u),
+			ALTITUDE(0x8u),
+			ALTITUDE_G(0x10u),
+			GPS_TIME(0x20u),
+			GPS_FRACTIONAL_TIME(0x40u),
+			EPH(0x80u),
+			EPV(0x100u),
+			TIMESTAMP_HIGH(0x400u),
+			TIMESTAMP_LOW(0x800u)
+		}
+
+		/**
+		 * Returns a List of KismetGPSFields available based on the provided UInt [gpsFieldsBitmask].
+		 */
+		fun checkGPSFields(gpsFieldsBitmask: UInt): List<KismetGPSFields> {
+			val gpsFields = KismetGPSFields.values().filter { field -> gpsFieldsBitmask shr sqrt(field.index.toDouble()).toInt() and 1u == 1u }
+			return gpsFields
+		}
+
+		/**
+		 * Returns a Map of available GPS data from the provided UInt [gpsFieldsBitmask] and UInt List [gpsDataRaw].
+		 */
+		fun mapGPSData(gpsFieldsBitmask: UInt, gpsDataRaw: List<UInt>): Map<String, Any> {
+			val gpsDataMap = buildMap {
+				checkGPSFields(gpsFieldsBitmask).forEachIndexed() { index, field ->
+					if(index < gpsDataRaw.size) {
+						val gpsData = when (field.index) {
+							KismetGPSFields.LONGITUDE.index, KismetGPSFields.LATITUDE.index -> decodeLatLong(gpsDataRaw[index])
+							KismetGPSFields.ALTITUDE.index -> decodeAlt(gpsDataRaw[index])
+							else -> 0u
+						}
+						put(field.name, gpsData)
+					}
+				}
+			}
+			return gpsDataMap
+		}
+
+		/**
+		 * Returns the decoded 3_6 of a Kismet-style 32 bit [rawUInt] with 3_6 (###.######) precision.
+		 */
+		fun decode3_6(rawUInt: UInt): Float {
 			val max = 1000000000u
-			if (rawUInt > max) throw KismetPcapException(craftException("decode", "latitude", rawUInt, max))
+			if (rawUInt > max) throw KismetPcapException(craftException("decode", "3_6", rawUInt, max))
 			return rawUInt.toFloat() / 1000000.0f
 		}
 
 		/**
-		 * Returns the decoded longitude of a Kismet-style 32 bit [rawUInt] with 3_7 (###.#######) precision.
+		 * Returns the decoded Latitude or Longitude of a Kismet-style 32 bit [rawUInt] with 3_7 (###.#######) precision.
 		 */
-		fun decodeLong(rawUInt: UInt): Float {
+		fun decodeLatLong(rawUInt: UInt): Float {
 			val max = 3600000000u
-			if (rawUInt > max) throw KismetPcapException(craftException("decode", "longitude", rawUInt, max))
-			return (rawUInt.toFloat() - (180 * 1000000.0f)) / 1000000.0f
+			if (rawUInt > max) throw KismetPcapException(craftException("decode", "latitude or longitude", rawUInt, max))
+			return (rawUInt.toFloat() - (180 * 10000000)) / 10000000
+		}
+
+		/**
+		 * Returns the decoded Altitude of a Kismet-style 32 bit [rawUInt] with 6_4 (######.####) precision.
+		 */
+		fun decodeAlt(rawUInt: UInt): Float {
+			val max = 3600000000u
+			if (rawUInt > max) throw KismetPcapException(craftException("decode", "altitude", rawUInt, max))
+			return (rawUInt.toFloat() - (180000  * 10000)) / 10000
 		}
 
 		/**

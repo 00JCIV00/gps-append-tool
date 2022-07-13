@@ -19,7 +19,6 @@ import com.savagej.pcap.PcapData
 import com.savagej.pcap.kismet.KismetGPSData
 
 import java.io.File
-import java.text.DecimalFormat
 import java.util.*
 
 
@@ -140,9 +139,12 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 									echo("$i: ${Integer.toBinaryString(optionUInts[i].toInt()).padStart(32, '0')}")
 								}
 
-								if (verbosity >= 2) echo("***Found Kismet GPS Custom Block Option!*** (Option: $index)")
+								if (verbosity >= 2){
+									echo("***Found Kismet GPS Custom Block Option!*** (Option: $index)")
+									echo("-- GPS Fields: ${KismetGPSData.checkGPSFields(optionUInts[2])}")
+								}
 								// Extract GPS
-								val gpsData = "\tLat:${DecimalFormat("000.000000").format(KismetGPSData.decodeLat(optionUInts[2]))}  "
+								val gpsData = KismetGPSData.mapGPSData(optionUInts[2], optionUInts.subList(3, optionUInts.size))
 
 								kismetGPSBlocks.add(Pair(curBlock, Pair(index, "GPS Data: $gpsData")))
 								foundKismetGPS = true
