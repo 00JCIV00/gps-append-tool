@@ -1,45 +1,38 @@
 /*
 Author:     Jake Crawford
 Created:    06 JUL 2022
-Updated:    11 JUL 2022
-Version:	0.0.3a
+Updated:    12 JUL 2022
+Version:	0.0.4a
 
 Details:	Append GPS data to survey files
  */
 
 import com.github.ajalt.clikt.core.*
-import com.github.ajalt.clikt.parameters.options.default
-import com.github.ajalt.clikt.parameters.options.flag
-import com.github.ajalt.clikt.parameters.options.option
-import com.github.ajalt.clikt.parameters.options.validate
+import com.github.ajalt.clikt.parameters.options.*
 import com.github.ajalt.clikt.parameters.types.int
 import com.silabs.na.pcap.Block
 import com.silabs.na.pcap.IPcapInput
+import com.silabs.na.pcap.PacketBlock
 import com.silabs.na.pcap.Pcap
 
-/*import pcap.codec.ethernet.Ethernet
-import pcap.codec.ip.*
-import pcap.codec.tcp.Tcp
-import pcap.codec.udp.Udp
-import pcap.spi.PacketBuffer
-import pcap.spi.PacketHeader
-import pcap.spi.Service
-import pcap.spi.exception.ErrorException
-import pcap.spi.exception.error.BreakException
-import pcap.spi.option.DefaultOfflineOptions
- */
+import com.savagej.pcap.PcapData
+import com.savagej.pcap.kismet.KismetGPSData
+
 import java.io.File
+import java.text.DecimalFormat
+import java.util.*
 
 
 class GAT: CliktCommand("GPS Append Tool.") {
 	// Options
-	val verbose by option("-v", help = "Enable verbose messaging.").flag("--no-verbose", default = false, defaultForHelp = "disabled")
+	val verbosity by option("-v", help = "Set verbosity level (0-4) for messaging. 0 is lowest, 4 is highest.").int().default(0)
+		.check("Verbosity must be between 0-4") { it in 0..4 }
 
 	// Config
 	val config by findOrSetObject { mutableMapOf<String, Any>() }
 
 	override fun run(){
-		config["verbose"] = verbose
+		config["verbosity"] = verbosity
 	}
 }
 
@@ -91,93 +84,121 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 
 
 		// Logic
-		echo()
-		if (config["verbose"] as Boolean) {
+		val verbosity = config["verbosity"] as Int
+		echo("\nVerbosity Level: $verbosity")
+		if (verbosity >= 4) {
 			for (item in listOf(input, gpsData, filetype, output)) {
 				echo(item)
 			}
 		}
-		else
-			echo("Verbose mode off.")
 
 		echo("\n=============================\n")
 		echo("Attempting to read in '$input'...")
-		val pcapFileIn: File = File(input)
+		val pcapFileIn = File(input)
 
 		try {
+			// Pcap
 			val pcapIn: IPcapInput = Pcap.openForReading(pcapFileIn)
-			var count = 0
-			val countExp: () -> Boolean = if (numPackets > 0) { { count < numPackets } } else { { true } }
-			echo("While Expression: $countExp\n\t- Result: ${countExp()}")
+			var curBlock = 0
+			val countExp: () -> Boolean = if (numPackets > 0) { { curBlock < numPackets } } else { { true } }
+
+			// - Kismet
+			var foundKismetGPS = false
+			val kismetGPSBlocks: MutableList<Pair<Int, Pair<Int, String>>> = mutableListOf()
+
+			if (verbosity >= 1) echo("Checking for Kismet GPS Blocks...")
 			while (countExp()) {
-				val block: Block? = pcapIn.nextBlock() ?: break
-				echo(count)
-				echo("${block?.type()?.toString()}")
-				echo("${block?.type()?.typeCode()}")
-				echo("")
-				count++
-			}
-		}
+				val block: Block = pcapIn.nextBlock() ?: break
+				if (verbosity >= 3) {
+					echo("Block #: $curBlock\n===")
+					echo("- Type: ${block.type()?.toString()}")
+					echo("- Code:\n\tBin: ${Integer.toBinaryString(block.type()?.typeCode() ?: 0).padStart(8, '0')}b" +
+								"\tDec: ${block.type()?.typeCode()}" +
+								"\tHex: 0x${Integer.toHexString(block.type()?.typeCode() ?: 0).padStart(Int.SIZE_BYTES, '0').uppercase(Locale.getDefault())}")
+				}
+				// Custom Block - Kismet GPS
+				if (block.type()?.typeCode() == 0x00000BAD) {
+					if (verbosity >= 2) echo("***Found Kismet GPS Custom BLOCK!*** (Block: $curBlock)")
+					kismetGPSBlocks.add(Pair(curBlock, Pair(1, "GPS Data:\t(WIP)")))
+				}
+				// Enhanced Packet Block
+				else if (block.containsDataOfType(PacketBlock::class.java)) {
+					// Custom Option - Kismet GPS
+					block.options()?.forEachIndexed() { index, option ->
+						// Detect Custom Option code
+						if (option.code() == 2989) {
+							val optionUInts = PcapData.extractUInts(option.value())
+							val optionInternalHeader = PcapData.splitUInt(optionUInts[1], mutableListOf(8, 8, 16))
+							if (verbosity >= 2) echo("- Option Internal Header:\n\t${Integer.toBinaryString(optionUInts[1].toInt()).padStart(32, '0')}" +
+																						"\t${optionInternalHeader[0]}" +
+																						"\t${optionInternalHeader[1]}" +
+																						"\t${optionInternalHeader[2]}")
+							// Detect Kismet GPS Magic Number
+							if (optionInternalHeader.contains(0x47u)) {
+								val uintCount: Int = if (optionUInts.size <= 20) optionUInts.size - 1 else 19
+								for (i in 0..uintCount) {
+									echo("$i: ${Integer.toBinaryString(optionUInts[i].toInt()).padStart(32, '0')}")
+								}
 
-		catch (e: Exception) {
-			echo(err = true, message = e.message)
-		}
+								if (verbosity >= 2) echo("***Found Kismet GPS Custom Block Option!*** (Option: $index)")
+								// Extract GPS
+								val gpsData = "\tLat:${DecimalFormat("000.000000").format(KismetGPSData.decodeLat(optionUInts[2]))}  "
 
-		echo("\n\nAttempted to read in '$input'.\n")
-
-		/*
-		val pcapService = Service.Creator.create("PcapService")
-		val pcapIn = pcapService.offline(input, DefaultOfflineOptions())
-		try {
-			var count = 0
-			pcapIn.loop(
-				if (numPackets >= 0) numPackets else 0,
-				{ args: String, header: PacketHeader, buffer: PacketBuffer ->
-					// echo("Args:\t$args")
-					if (count % 1 == 0) {
-						echo(count)
-						echo("Header:\t$header")
-						echo("Packet:\t$buffer")
-						val ethernet: Ethernet = buffer.cast(Ethernet::class.java)
-						echo(ethernet)
-						if (ethernet.type() == Ip4.TYPE) {
-							val ip4: Ip4 = buffer.readerIndex(ethernet.size().toLong()).cast(Ip4::class.java)
-							echo(ip4)
-							if (ip4.protocol() == Tcp.TYPE) {
-								val tcp: Tcp = buffer.readerIndex((ethernet.size() + ip4.size()).toLong()).cast(Tcp::class.java)
-								echo(tcp)
-							}
-							else if (ip4.protocol() == Udp.TYPE) {
-								val udp: Udp = buffer.readerIndex((ethernet.size() + ip4.size()).toLong()).cast(Udp::class.java)
-								echo(udp)
-							}
-						}
-						else if (ethernet.type() == Ip6.TYPE) {
-							val ip6: Ip6 = buffer.readerIndex(ethernet.size().toLong()).cast(Ip6::class.java)
-							echo(ip6)
-							if (ip6.nextHeader() == Tcp.TYPE) {
-								val tcp: Tcp = buffer.readerIndex((ethernet.size() + ip6.size()).toLong()).cast(Tcp::class.java)
-								echo(tcp)
-							}
-							else if (ip6.nextHeader() == Udp.TYPE) {
-								val udp: Udp = buffer.readerIndex((ethernet.size() + ip6.size()).toLong()).cast(Udp::class.java)
-								echo(udp)
+								kismetGPSBlocks.add(Pair(curBlock, Pair(index, "GPS Data: $gpsData")))
+								foundKismetGPS = true
 							}
 						}
 					}
-					count++
-				},
-				"Test PCAP"
-			)
-		}
-		catch (e: Exception) {
-			when(e) {
-				is BreakException, is ErrorException -> echo(err = true, message = e.message ?: "")
+
+					/*echo(" - Body (Raw):")
+					echo("###: _______|_______|_______|_______|")
+					val rawData = (block?.data() as PacketBlock).data() as ByteArray
+					var bodyData: MutableList<UInt> = mutableListOf()
+					for (i in 0..rawData.size step 4 ) {
+						try {
+							val index32: Int = i / 4
+							// ID Common Byte Groups
+							// - 32
+							var int32: UInt = 0u
+							for (j in 0..3) int32 += rawData[i + j].toUByte().toUInt() shl (8 * j)
+							val bin32: String = Integer.toBinaryString(int32.toInt()).padStart(32, '0')
+							bodyData.add(int32)
+							if (config["superVerbose"] as Boolean) echo("${index32.toString().padStart(3, '0')}: $bin32")
+
+							// - 16
+							var int16one: UInt = 0u
+							for (j in 0..1) int16one += rawData[i + j].toUByte().toUInt() shl (8 * j)
+							var int16two: UInt = 0u
+							for (j in 2..3) int16two += rawData[i + j].toUByte().toUInt() shl (8 * j)
+
+							// ID Rover GPS Option in EPB
+							if (int32 == 55922u || int16one == 0x47u) {
+								echo("***Found Kismet GPS Custom Block Option!*** (Line: $index32)")
+								kismetGPSBlocks.add(Pair(curBlock, Pair(index32, Integer.toBinaryString(int32.toInt()).padStart(32, '0'))))
+								foundKismetGPS = true
+							}
+						}
+						catch (e: ArrayIndexOutOfBoundsException) { break }
+					}*/
+				}
+				else echo("- Data:\n${block.data()}")
+				if (verbosity >= 2) echo("===\n")
+				curBlock++
 			}
+			echo("Checked for Kismet GPS Data.")
+			if (foundKismetGPS) {
+				echo("Found Kismet GPS Data:")
+				kismetGPSBlocks.forEach { echo(it) }
+			}
+			else echo("No Kismet GPS Data found.")
 
 		}
-		pcapIn.close()
-		 */
+
+		catch (e: Exception) {
+			echo(err = true, message = "Error: ${e.cause}:\n${e.message}\n${e.stackTraceToString()}")
+		}
+
+		echo("\n\nAttempted to read in '$input'.\n")
 	}
 
 }

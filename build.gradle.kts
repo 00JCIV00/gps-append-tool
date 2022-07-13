@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "00JCIV00"
-version = "0.0.3a"
+version = "0.0.4a"
 
 repositories {
     mavenCentral()
@@ -22,13 +22,6 @@ dependencies {
 
     // External
     implementation("com.github.ajalt.clikt:clikt:3.+")
-    /* implementation("com.ardikars.pcap:pcap:1.4.+")
-    implementation("com.ardikars.pcap:pcap-jdk7:1.4.+")
-    implementation("com.ardikars.pcap:pcap-spi:1.4.+")
-    implementation("com.ardikars.pcap:pcap-tests:1.4.+")
-    implementation("com.ardikars.pcap:pcap-common:1.4.+")
-    implementation("com.ardikars.pcap:pcap-codec:1.4.+")
-     */
 
 }
 
@@ -50,7 +43,11 @@ distributions{
 tasks.register("updateVersionNumbers") {
     println("Updating Version Numbers to $version...")
     var updatedVer = false
-    listOf("README.md", "src/main/kotlin/Main.kt").forEach { fileName ->
+    var updList = mutableListOf("README.md")
+    fileTree("/src").forEach {file ->
+        if (file.isFile && file.name.contains(".kt")) updList.add(file.absolutePath)
+    }
+    updList.forEach { fileName ->
         val nextFile = File(fileName)
         val newLines: MutableList<String> = mutableListOf()
         var updateFile = false
