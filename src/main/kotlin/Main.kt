@@ -1,8 +1,8 @@
 /*
 Author:     Jake Crawford
 Created:    06 JUL 2022
-Updated:    12 JUL 2022
-Version:	0.0.4a
+Updated:    13 JUL 2022
+Version:	0.0.5a
 
 Details:	Append GPS data to survey files
  */
@@ -17,6 +17,7 @@ import com.silabs.na.pcap.Pcap
 
 import com.savagej.pcap.PcapData
 import com.savagej.pcap.kismet.KismetGPSData
+import com.silabs.na.pcap.OtherBlock
 
 import java.io.File
 import java.util.*
@@ -117,8 +118,16 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 				}
 				// Custom Block - Kismet GPS
 				if (block.type()?.typeCode() == 0x00000BAD) {
-					if (verbosity >= 2) echo("***Found Kismet GPS Custom BLOCK!*** (Block: $curBlock)")
-					kismetGPSBlocks.add(Pair(curBlock, Pair(1, "GPS Data:\t(WIP)")))
+					val blockUInts = PcapData.extractUInts((block.data() as OtherBlock).body())
+					if (verbosity >= 2) {
+						echo("***Found Kismet GPS Custom BLOCK!*** (Block: $curBlock)")
+						val uintCount: Int = if (blockUInts.size <= 20) blockUInts.size - 1 else 19
+						echo ("- 32 Bit Lines:")
+						for (i in 0..uintCount) echo("$i: ${Integer.toBinaryString(blockUInts[i].toInt()).padStart(32, '0')}")
+					}
+					// Extract GPS
+					val gpsData = KismetGPSData.mapGPSData(blockUInts[2], blockUInts.subList(3, blockUInts.size))
+					kismetGPSBlocks.add(Pair(curBlock, Pair(1, "GPS Data:\t$gpsData")))
 				}
 				// Enhanced Packet Block
 				else if (block.containsDataOfType(PacketBlock::class.java)) {
@@ -128,18 +137,16 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 						if (option.code() == 2989) {
 							val optionUInts = PcapData.extractUInts(option.value())
 							val optionInternalHeader = PcapData.splitUInt(optionUInts[1], mutableListOf(8, 8, 16))
-							if (verbosity >= 2) echo("- Option Internal Header:\n\t${Integer.toBinaryString(optionUInts[1].toInt()).padStart(32, '0')}" +
+							if (verbosity >= 2) echo("- Option\n-- Internal Header:\n\t${Integer.toBinaryString(optionUInts[1].toInt()).padStart(32, '0')}" +
 																						"\t${optionInternalHeader[0]}" +
 																						"\t${optionInternalHeader[1]}" +
 																						"\t${optionInternalHeader[2]}")
 							// Detect Kismet GPS Magic Number
 							if (optionInternalHeader.contains(0x47u)) {
-								val uintCount: Int = if (optionUInts.size <= 20) optionUInts.size - 1 else 19
-								for (i in 0..uintCount) {
-									echo("$i: ${Integer.toBinaryString(optionUInts[i].toInt()).padStart(32, '0')}")
-								}
-
 								if (verbosity >= 2){
+									val uintCount: Int = if (optionUInts.size <= 20) optionUInts.size - 1 else 19
+									echo ("-- 32 Bit Lines:")
+									for (i in 0..uintCount) echo("$i: ${Integer.toBinaryString(optionUInts[i].toInt()).padStart(32, '0')}")
 									echo("***Found Kismet GPS Custom Block Option!*** (Option: $index)")
 									echo("-- GPS Fields: ${KismetGPSData.checkGPSFields(optionUInts[2])}")
 								}
@@ -151,37 +158,6 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 							}
 						}
 					}
-
-					/*echo(" - Body (Raw):")
-					echo("###: _______|_______|_______|_______|")
-					val rawData = (block?.data() as PacketBlock).data() as ByteArray
-					var bodyData: MutableList<UInt> = mutableListOf()
-					for (i in 0..rawData.size step 4 ) {
-						try {
-							val index32: Int = i / 4
-							// ID Common Byte Groups
-							// - 32
-							var int32: UInt = 0u
-							for (j in 0..3) int32 += rawData[i + j].toUByte().toUInt() shl (8 * j)
-							val bin32: String = Integer.toBinaryString(int32.toInt()).padStart(32, '0')
-							bodyData.add(int32)
-							if (config["superVerbose"] as Boolean) echo("${index32.toString().padStart(3, '0')}: $bin32")
-
-							// - 16
-							var int16one: UInt = 0u
-							for (j in 0..1) int16one += rawData[i + j].toUByte().toUInt() shl (8 * j)
-							var int16two: UInt = 0u
-							for (j in 2..3) int16two += rawData[i + j].toUByte().toUInt() shl (8 * j)
-
-							// ID Rover GPS Option in EPB
-							if (int32 == 55922u || int16one == 0x47u) {
-								echo("***Found Kismet GPS Custom Block Option!*** (Line: $index32)")
-								kismetGPSBlocks.add(Pair(curBlock, Pair(index32, Integer.toBinaryString(int32.toInt()).padStart(32, '0'))))
-								foundKismetGPS = true
-							}
-						}
-						catch (e: ArrayIndexOutOfBoundsException) { break }
-					}*/
 				}
 				else echo("- Data:\n${block.data()}")
 				if (verbosity >= 2) echo("===\n")

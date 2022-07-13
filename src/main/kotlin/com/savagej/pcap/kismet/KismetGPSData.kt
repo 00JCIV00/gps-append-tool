@@ -1,8 +1,8 @@
 /*
 Author:     Jake Crawford
 Created:    12 JUL 2022
-Updated:    12 JUL 2022
-Version:	0.0.4a
+Updated:    13 JUL 2022
+Version:	0.0.5a
 
 Details:	Encode and Decode custom pcap-ng bytes to and from Kismet gps data
  */
@@ -42,13 +42,24 @@ class KismetGPSData {
 		 */
 		fun mapGPSData(gpsFieldsBitmask: UInt, gpsDataRaw: List<UInt>): Map<String, Any> {
 			val gpsDataMap = buildMap {
+				var timestamp: Long = 0
 				checkGPSFields(gpsFieldsBitmask).forEachIndexed() { index, field ->
 					if(index < gpsDataRaw.size) {
 						val gpsData = when (field.index) {
 							KismetGPSFields.LONGITUDE.index, KismetGPSFields.LATITUDE.index -> decodeLatLong(gpsDataRaw[index])
-							KismetGPSFields.ALTITUDE.index -> decodeAlt(gpsDataRaw[index])
+							KismetGPSFields.ALTITUDE.index, KismetGPSFields.ALTITUDE_G.index, KismetGPSFields.EPH.index, KismetGPSFields.EPV.index -> decodeAlt(gpsDataRaw[index])
+							KismetGPSFields.GPS_TIME.index, KismetGPSFields.GPS_FRACTIONAL_TIME.index -> gpsDataRaw[index]
+							KismetGPSFields.TIMESTAMP_HIGH.index -> {
+								timestamp += gpsDataRaw[index].toLong()
+								gpsDataRaw[index]
+							}
+							KismetGPSFields.TIMESTAMP_LOW.index -> {
+								timestamp = timestamp shl 32 or gpsDataRaw[index].toLong()
+								gpsDataRaw[index]
+							}
 							else -> 0u
 						}
+
 						put(field.name, gpsData)
 					}
 				}

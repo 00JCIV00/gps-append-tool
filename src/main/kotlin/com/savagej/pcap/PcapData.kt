@@ -2,7 +2,7 @@
 Author:     Jake Crawford
 Created:    12 JUL 2022
 Updated:    12 JUL 2022
-Version:	0.0.4a
+Version:	0.0.5a
 
 Details:	Extract data from pcap file bytes
  */
