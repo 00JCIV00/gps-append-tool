@@ -152,7 +152,8 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 									echo("-- GPS Fields: ${KismetGPSData.checkGPSFields(optionUInts[2])}")
 								}
 								// Extract GPS
-								val gpsData = KismetGPSData.mapGPSData(optionUInts[2], optionUInts.subList(3, optionUInts.size))
+								val epbTime = Date((block.data() as PacketBlock).nanoseconds() / 1000000)
+								val gpsData = "${KismetGPSData.mapGPSData(optionUInts[2], optionUInts.subList(3, optionUInts.size))} TIMESTAMP_DATETIME: $epbTime"
 
 								kismetGPSBlocks.add(Pair(curBlock, Pair(index, "GPS Option:\t$gpsData")))
 								foundKismetGPS = true
