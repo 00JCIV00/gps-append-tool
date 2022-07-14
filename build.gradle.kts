@@ -13,7 +13,7 @@ repositories {
 }
 
 dependencies {
-    // Default
+    // Kotlin Standard
     testImplementation(kotlin("test"))
 
     // Local
@@ -22,7 +22,6 @@ dependencies {
 
     // External
     implementation("com.github.ajalt.clikt:clikt:3.+")
-
 }
 
 application {

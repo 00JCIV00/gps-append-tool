@@ -85,6 +85,7 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 
 		// Logic
 		val verbosity = config["verbosity"] as Int
+
 		echo("\nVerbosity Level: $verbosity")
 		if (verbosity >= 4) {
 			for (item in listOf(input, gpsData, filetype, output)) {
@@ -118,7 +119,7 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 				}
 				// Custom Block - Kismet GPS
 				if (block.type()?.typeCode() == 0x00000BAD) {
-					val blockUInts = PcapData.extractUInts((block.data() as OtherBlock).body())
+					val blockUInts = PcapData.formatToUInts((block.data() as OtherBlock).body())
 					if (verbosity >= 2) {
 						echo("***Found Kismet GPS Custom BLOCK!*** (Block: $curBlock)")
 						val uintCount: Int = if (blockUInts.size <= 20) blockUInts.size - 1 else 19
@@ -127,7 +128,7 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 					}
 					// Extract GPS
 					val gpsData = KismetGPSData.mapGPSData(blockUInts[2], blockUInts.subList(3, blockUInts.size))
-					kismetGPSBlocks.add(Pair(curBlock, Pair(1, "GPS Data:\t$gpsData")))
+					kismetGPSBlocks.add(Pair(curBlock, Pair(0, "GPS Block:\t$gpsData")))
 				}
 				// Enhanced Packet Block
 				else if (block.containsDataOfType(PacketBlock::class.java)) {
@@ -135,7 +136,7 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 					block.options()?.forEachIndexed() { index, option ->
 						// Detect Custom Option code
 						if (option.code() == 2989) {
-							val optionUInts = PcapData.extractUInts(option.value())
+							val optionUInts = PcapData.formatToUInts(option.value())
 							val optionInternalHeader = PcapData.splitUInt(optionUInts[1], mutableListOf(8, 8, 16))
 							if (verbosity >= 2) echo("- Option\n-- Internal Header:\n\t${Integer.toBinaryString(optionUInts[1].toInt()).padStart(32, '0')}" +
 																						"\t${optionInternalHeader[0]}" +
@@ -153,20 +154,22 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 								// Extract GPS
 								val gpsData = KismetGPSData.mapGPSData(optionUInts[2], optionUInts.subList(3, optionUInts.size))
 
-								kismetGPSBlocks.add(Pair(curBlock, Pair(index, "GPS Data: $gpsData")))
+								kismetGPSBlocks.add(Pair(curBlock, Pair(index, "GPS Option:\t$gpsData")))
 								foundKismetGPS = true
 							}
 						}
 					}
 				}
-				else echo("- Data:\n${block.data()}")
-				if (verbosity >= 2) echo("===\n")
+				else if (verbosity >= 2) {
+					echo("- Data:\n${block.data()}")
+					echo("===\n")
+				}
 				curBlock++
 			}
 			echo("Checked for Kismet GPS Data.")
 			if (foundKismetGPS) {
 				echo("Found Kismet GPS Data:")
-				kismetGPSBlocks.forEach { echo(it) }
+				kismetGPSBlocks.forEach { echo("Block: ${it.first.toString().padStart(6, '0')}, Option: ${it.second.first}, Data:\t${it.second.second}") }
 			}
 			else echo("No Kismet GPS Data found.")
 

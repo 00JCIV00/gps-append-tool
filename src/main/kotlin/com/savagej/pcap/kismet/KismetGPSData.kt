@@ -9,7 +9,8 @@ Details:	Encode and Decode custom pcap-ng bytes to and from Kismet gps data
 
 package com.savagej.pcap.kismet
 
-import kotlin.math.sqrt
+import com.savagej.pcap.PcapData
+import java.util.Date
 
 class KismetGPSData {
 	companion object {
@@ -33,8 +34,7 @@ class KismetGPSData {
 		 * Returns a List of KismetGPSFields available based on the provided UInt [gpsFieldsBitmask].
 		 */
 		fun checkGPSFields(gpsFieldsBitmask: UInt): List<KismetGPSFields> {
-			val gpsFields = KismetGPSFields.values().filter { field -> gpsFieldsBitmask shr sqrt(field.index.toDouble()).toInt() and 1u == 1u }
-			return gpsFields
+			return KismetGPSFields.values().filter { field -> gpsFieldsBitmask and field.index == field.index }
 		}
 
 		/**
@@ -42,25 +42,20 @@ class KismetGPSData {
 		 */
 		fun mapGPSData(gpsFieldsBitmask: UInt, gpsDataRaw: List<UInt>): Map<String, Any> {
 			val gpsDataMap = buildMap {
-				var timestamp: Long = 0
 				checkGPSFields(gpsFieldsBitmask).forEachIndexed() { index, field ->
 					if(index < gpsDataRaw.size) {
 						val gpsData = when (field.index) {
 							KismetGPSFields.LONGITUDE.index, KismetGPSFields.LATITUDE.index -> decodeLatLong(gpsDataRaw[index])
 							KismetGPSFields.ALTITUDE.index, KismetGPSFields.ALTITUDE_G.index, KismetGPSFields.EPH.index, KismetGPSFields.EPV.index -> decodeAlt(gpsDataRaw[index])
-							KismetGPSFields.GPS_TIME.index, KismetGPSFields.GPS_FRACTIONAL_TIME.index -> gpsDataRaw[index]
-							KismetGPSFields.TIMESTAMP_HIGH.index -> {
-								timestamp += gpsDataRaw[index].toLong()
-								gpsDataRaw[index]
-							}
-							KismetGPSFields.TIMESTAMP_LOW.index -> {
-								timestamp = timestamp shl 32 or gpsDataRaw[index].toLong()
-								gpsDataRaw[index]
-							}
+							KismetGPSFields.GPS_TIME.index, KismetGPSFields.GPS_FRACTIONAL_TIME.index, KismetGPSFields.TIMESTAMP_HIGH.index, KismetGPSFields.TIMESTAMP_LOW.index -> gpsDataRaw[index]
 							else -> 0u
 						}
-
 						put(field.name, gpsData)
+						if (field.name == "TIMESTAMP_LOW") {
+							val timestamp = PcapData.decodeTimestampEpoch(this["TIMESTAMP_HIGH"] as UInt, this["TIMESTAMP_LOW"] as UInt)
+							put("TIMESTAMP_EPOCH", timestamp)
+							put("TIMESTAMP_DATETIME", Date((timestamp["EPOCH_RAW_uS"]?.toLong() ?: 1) / 1000 ))
+						}
 					}
 				}
 			}
@@ -97,7 +92,7 @@ class KismetGPSData {
 		/**
 		 * Returns Exception String for Decodes.
 		 */
-		fun craftException(operation: String, type: String, value: Any, max: Any, min: Any = 0u): String {
+		private fun craftException(operation: String, type: String, value: Any, max: Any, min: Any = 0u): String {
 			return "Unable to $operation $type from value: $value. The value must be within $min to $max."
 		}
 	}
