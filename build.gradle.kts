@@ -18,7 +18,10 @@ dependencies {
 
     // Local
     fileTree("/lib").filter { file -> file.name.endsWith(".jar") }
-                            .forEach { jar -> implementation(files(jar))}
+                            .forEach { jar ->
+                                implementation(files(jar))
+                                println("Implemented local jar: ${jar.name}")
+                            }
 
     // External
     implementation("com.github.ajalt.clikt:clikt:3.+")
