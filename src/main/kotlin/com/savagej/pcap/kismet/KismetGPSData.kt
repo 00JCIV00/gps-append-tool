@@ -1,7 +1,7 @@
 /*
 Author:     Jake Crawford
 Created:    12 JUL 2022
-Updated:    13 JUL 2022
+Updated:    14 JUL 2022
 Version:	0.0.5a
 
 Details:	Encode and Decode custom pcap-ng bytes to and from Kismet gps data
@@ -9,6 +9,7 @@ Details:	Encode and Decode custom pcap-ng bytes to and from Kismet gps data
 
 package com.savagej.pcap.kismet
 
+import com.savagej.gps.GPSData
 import com.savagej.pcap.PcapData
 import java.util.Date
 
@@ -40,7 +41,7 @@ class KismetGPSData {
 		/**
 		 * Returns a Map of available GPS data from the provided UInt [gpsFieldsBitmask] and UInt List [gpsDataRaw].
 		 */
-		fun mapGPSData(gpsFieldsBitmask: UInt, gpsDataRaw: List<UInt>): Map<String, Any> {
+		fun mapGPSData(gpsFieldsBitmask: UInt, gpsDataRaw: List<UInt>): GPSData {
 			val gpsDataMap = buildMap {
 				checkGPSFields(gpsFieldsBitmask).forEachIndexed() { index, field ->
 					if(index < gpsDataRaw.size) {
@@ -53,13 +54,13 @@ class KismetGPSData {
 						put(field.name, gpsData)
 						if (field.name == "TIMESTAMP_LOW") {
 							val timestamp = PcapData.decodeTimestampEpoch(this["TIMESTAMP_HIGH"] as UInt, this["TIMESTAMP_LOW"] as UInt)
-							put("TIMESTAMP_EPOCH", timestamp)
+							put("TIMESTAMP_EPOCH", timestamp["EPOCH_RAW_uS"])
 							put("TIMESTAMP_DATETIME", Date((timestamp["EPOCH_RAW_uS"]?.toLong() ?: 1) / 1000 ))
 						}
 					}
 				}
 			}
-			return gpsDataMap
+			return GPSData(gpsDataMap)
 		}
 
 		/**
