@@ -19,7 +19,7 @@ data class GPSData(val lat: Float = 0f, val long: Float = 0f,
 				   val gpsTime: UInt = 0u, val gpsFracTime: UInt = 0u,
 				   val eph: Float = 0f, val epv: Float = 0f,
 				   val timestampHigh: UInt = 0u, val timestampLow: UInt = 0u,
-				   val timestampEpoch: ULong = 0u.toULong()){
+				   val timestampEpoch: ULong = 0u){
 
 	/**
 	 * Creates a GPSData object from the GPS Data in the provided Map [gpsMap].

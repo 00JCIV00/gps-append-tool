@@ -1,7 +1,7 @@
 /*
 Author:     Jake Crawford
 Created:    12 JUL 2022
-Updated:    14 JUL 2022
+Updated:    20 JUL 2022
 Version:	0.0.5a
 
 Details:	Encode and Decode custom pcap-ng bytes to and from Kismet gps data
@@ -39,9 +39,9 @@ class KismetGPSData {
 		}
 
 		/**
-		 * Returns a Map of available GPS data from the provided UInt [gpsFieldsBitmask] and UInt List [gpsDataRaw].
+		 * Returns a GPSData object built from the provided UInt [gpsFieldsBitmask] and UInt List [gpsDataRaw].
 		 */
-		fun mapGPSData(gpsFieldsBitmask: UInt, gpsDataRaw: List<UInt>): GPSData {
+		fun mapPcapngGPSData(gpsFieldsBitmask: UInt, gpsDataRaw: List<UInt>): GPSData {
 			val gpsDataMap = buildMap {
 				checkGPSFields(gpsFieldsBitmask).forEachIndexed() { index, field ->
 					if(index < gpsDataRaw.size) {
@@ -68,7 +68,7 @@ class KismetGPSData {
 		 */
 		fun decode3_6(rawUInt: UInt): Float {
 			val max = 1000000000u
-			if (rawUInt > max) throw KismetPcapException(craftException("decode", "3_6", rawUInt, max))
+			if (rawUInt > max) throw KismetPcapException(craftCodeException("decode", "3_6", rawUInt, max))
 			return rawUInt.toFloat() / 1000000.0f
 		}
 
@@ -77,7 +77,7 @@ class KismetGPSData {
 		 */
 		fun decodeLatLong(rawUInt: UInt): Float {
 			val max = 3600000000u
-			if (rawUInt > max) throw KismetPcapException(craftException("decode", "latitude or longitude", rawUInt, max))
+			if (rawUInt > max) throw KismetPcapException(craftCodeException("decode", "latitude or longitude", rawUInt, max))
 			return (rawUInt.toFloat() - (180 * 10000000)) / 10000000
 		}
 
@@ -86,14 +86,14 @@ class KismetGPSData {
 		 */
 		fun decodeAlt(rawUInt: UInt): Float {
 			val max = 3600000000u
-			if (rawUInt > max) throw KismetPcapException(craftException("decode", "altitude", rawUInt, max))
+			if (rawUInt > max) throw KismetPcapException(craftCodeException("decode", "altitude", rawUInt, max))
 			return (rawUInt.toFloat() - (180000  * 10000)) / 10000
 		}
 
 		/**
 		 * Returns Exception String for Decodes.
 		 */
-		private fun craftException(operation: String, type: String, value: Any, max: Any, min: Any = 0u): String {
+		private fun craftCodeException(operation: String, type: String, value: Any, max: Any, min: Any = 0u): String {
 			return "Unable to $operation $type from value: $value. The value must be within $min to $max."
 		}
 	}

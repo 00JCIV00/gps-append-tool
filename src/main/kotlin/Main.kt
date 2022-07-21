@@ -1,7 +1,7 @@
 /*
 Author:     Jake Crawford
 Created:    06 JUL 2022
-Updated:    14 JUL 2022
+Updated:    20 JUL 2022
 Version:	0.0.5a
 
 Details:	Append GPS data to survey files
@@ -18,6 +18,7 @@ import com.silabs.na.pcap.Pcap
 import com.savagej.pcap.PcapData
 import com.savagej.pcap.kismet.KismetGPSData
 import com.silabs.na.pcap.OtherBlock
+import com.silabs.na.pcap.impl.PcapInputNio
 
 import java.io.File
 import java.util.*
@@ -105,6 +106,9 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 		try {
 			// Pcap/Pcap-NG
 			val pcapIn: IPcapInput = Pcap.openForReading(pcapFileIn)
+			if (pcapIn::class == PcapInputNio::class) {
+				echo ("Pcap LinkType: ${PcapData.splitUInt((pcapIn as PcapInputNio).network().toUInt(), mutableListOf(16))[0]}")
+			}
 			var curBlock = 0
 			val countExp: () -> Boolean = if (numPackets > 0) { { curBlock < numPackets } } else { { true } }
 
@@ -134,7 +138,7 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 						for (i in 0..uintCount) echo("$i: ${Integer.toBinaryString(blockUInts[i].toInt()).padStart(32, '0')}")
 					}
 					// Extract GPS
-					val gpsData = KismetGPSData.mapGPSData(blockUInts[2], blockUInts.subList(3, blockUInts.size)).toMap()
+					val gpsData = KismetGPSData.mapPcapngGPSData(blockUInts[2], blockUInts.subList(3, blockUInts.size)).toMap()
 					kismetGPSBlocks.add(Triple(curBlock, 0, "GPS Block:\t$gpsData"))
 				}
 				// Packet Block
@@ -145,7 +149,6 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 
 					// Pcap-NG - Enhanced Packet Block
 					if (block.type().name == "ENHANCED_PACKET_BLOCK") {
-						if (verbosity >= 3) echo("- Length:\tCaptured Packet: ${blockUInts[5]}\tOriginal Packet: ${blockUInts[6]}")
 						// Custom Option - Kismet GPS
 						block.options()?.forEachIndexed() { index, option ->
 							// Detect Custom Option code
@@ -167,7 +170,7 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 									}
 									// Extract GPS
 									val epbTime = Date(packetBlock.nanoseconds() / 1000000)
-									val gpsData = "${KismetGPSData.mapGPSData(optionUInts[2], optionUInts.subList(3, optionUInts.size)).toMap()} TIMESTAMP_DATETIME: $epbTime"
+									val gpsData = "${KismetGPSData.mapPcapngGPSData(optionUInts[2], optionUInts.subList(3, optionUInts.size)).toMap()} TIMESTAMP_DATETIME: $epbTime"
 
 									kismetGPSBlocks.add(Triple(curBlock, index, "GPS Option:\t$gpsData"))
 									foundKismetGPS = true
@@ -177,10 +180,26 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 					}
 					// Pcap - Packet Block
 					else if (block.type().name == "PACKET_BLOCK") {
-						if (verbosity >= 3) echo("- Length:\tCaptured Packet: ${blockUInts[2]}\tOriginal Packet: ${blockUInts[3]}")
+						if (verbosity >= 3) {
+							//echo("- Length:\tCaptured Packet: ${blockUInts[2]}\tOriginal Packet: ${blockUInts[3]}")
+						}
 						if (verbosity >= 2) {
 							val uintCount: Int = if (blockUInts.size <= 20) blockUInts.size - 1 else 19
 							for (i in 0..uintCount) echo("${i.toString().padStart(4, '0')}: ${Integer.toBinaryString(blockUInts[i].toInt()).padStart(32, '0')}")
+						}
+
+						// Check for GPS data
+						val pfhInfo = PcapData.splitUInt(blockUInts[2], mutableListOf(16))
+						val pfhType = pfhInfo[0]
+						val pfhDataLen = pfhInfo[1]
+						if (pfhType == 30002u) {
+							val gpsMap: Map<String, Any> = mapOf(
+								"LATITUDE" to KismetGPSData.decodeLatLong(blockUInts[5]),
+								"LONGITUDE" to KismetGPSData.decodeLatLong(blockUInts[6])
+							)
+							val gpsData = "${gpsMap}"
+							kismetGPSBlocks.add(Triple(curBlock, 0, "GPS Data:\t$gpsData"))
+							foundKismetGPS = true
 						}
 					}
 				}
@@ -190,7 +209,7 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 				}
 				curBlock++
 			}
-			echo("Checked for Kismet GPS Data.")
+			// echo("Checked for Kismet GPS Data.")
 			if (foundKismetGPS) {
 				echo("Found Kismet GPS Data:")
 				kismetGPSBlocks.forEach { echo("Block: ${it.first.toString().padStart(6, '0')}, Option: ${it.second}, Data:\t${it.third}") }
@@ -209,7 +228,7 @@ class Append: CliktCommand("Append GPS data from gps file to pcap file.") {
 }
 
 /**
- * Record Command to
+ * Record Command to pull GPS data from the provided source to a file.
  */
 class Record: CliktCommand("Record GPS data from source to file") {
 	// Options
